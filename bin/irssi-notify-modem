@@ -9,38 +9,22 @@ import signal
 from zmq.eventloop import ioloop
 
 from zmqevt.subscriber import Subscriber
+from zmqevt.blinker import Blinker
 import zmqevt.defaults
 
-blinker = None
-waiting = set()
-
-class Blinker(object):
-    def __init__(self, path):
-        self.path = path
-        self.log = logging.getLogger('blinker')
-        self.state = False
-
-    def on(self):
-        if not self.state:
-            self.log.info('Activate notification.')
-            self.fd = open(self.path)
-            self.state = True
-
-    def off(self):
-        if self.state:
-            self.log.info('Deactivate notification.')
-            self.fd.close()
-            self.state = False
-
-def handle_message(msg):
-    global blinker
-    global waiting
+def handle_message(msg, data=None):
+    blinker, waiting = data
 
     if msg['tag'] == 'irssi.query.created':
         waiting.add(msg['query']['name'])
     elif msg['tag'] == 'irssi.message.own_private':
         try:
             waiting.remove(msg['target'])
+        except KeyError:
+            pass
+    elif msg['tag'] == 'irssi.query.destroyed':
+        try:
+            waiting.remove(msg['query']['name'])
         except KeyError:
             pass
 
@@ -58,8 +42,6 @@ def parse_args():
     return p.parse_args()
 
 def main():
-    global blinker
-
     opts = parse_args()
     blinker = Blinker(opts.path)
 
@@ -70,9 +52,11 @@ def main():
     s = Subscriber(patterns=[
         'irssi.message.private',
         'irssi.message.own_private',
-        'irssi.query.created'])
+        'irssi.query.created',
+        'irssi.query.destroyed',
+        ])
 
-    s.register_callback(handle_message)
+    s.register_callback(handle_message, (blinker, set()))
 
     signal.signal(signal.SIGINT,
             lambda sig,frame: ioloop.IOLoop.instance().stop())
