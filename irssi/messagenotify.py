@@ -3,17 +3,82 @@
 import os
 import sys
 import argparse
+import logging
+import signal
 
-import zmqevt
+from zmq.eventloop import ioloop
+
+from zmqevt.subscriber import Subscriber
+import zmqevt.defaults
+
+blinker = None
+waiting = set()
+
+class Blinker(object):
+    def __init__(self, path):
+        self.path = path
+        self.log = logging.getLogger('blinker')
+        self.state = False
+
+    def on(self):
+        if not self.state:
+            self.log.debug('Activate notification.')
+            self.fd = open(self.path)
+            self.state = True
+
+    def off(self):
+        if self.state:
+            self.log.debug('Deactivate notification.')
+            self.fd.close()
+            self.state = False
+
+def handle_message(msg):
+    global blinker
+    global waiting
+
+    if msg['tag'] == 'irssi.query.created':
+        waiting.add(msg['query']['name'])
+    elif msg['tag'] == 'irssi.message.own_private':
+        try:
+            waiting.remove(msg['target'])
+        except KeyError:
+            pass
+
+    if waiting:
+        blinker.on()
+    else:
+        blinker.off()
 
 def parse_args():
     p = argparse.ArgumentParser()
+    p.add_argument('--connect', '-c',
+            default=zmqevt.defaults.subscriber_sub_uri)
+    p.add_argument('--debug', action='store_true')
+    p.add_argument('path')
     return p.parse_args()
 
 def main():
+    global blinker
+
     opts = parse_args()
+    blinker = Blinker(opts.path)
+
+    logging.basicConfig(
+            level=logging.DEBUG if opts.debug else logging.INFO)
+    logging.info('Notifier starting up.')
+
+    s = Subscriber(patterns=[
+        'irssi.message.private',
+        'irssi.message.own_private',
+        'irssi.query.created'])
+
+    s.register_callback(handle_message)
+
+    signal.signal(signal.SIGINT,
+            lambda sig,frame: ioloop.IOLoop.instance().stop())
+    ioloop.install()
+    ioloop.IOLoop.instance().start()
 
 if __name__ == '__main__':
     main()
-
 
