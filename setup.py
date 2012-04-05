@@ -6,5 +6,6 @@ setup(
     author_email = 'lars@seas.harvard.edu',
     version = "1",
     packages = find_packages(),
-    scripts = [ 'bin/evtbroker', 'bin/evtsub', 'bin/evtpub' ],
+    scripts = [ 'bin/evtbroker', 'bin/evtsub', 'bin/evtpub',
+        'bin/irssi-notify-modem',],
 )
