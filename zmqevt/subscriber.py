@@ -55,11 +55,11 @@ class Subscriber (object):
     def setup_events(self):
         self.sub.on_recv(self.on_recv)
 
-    def register_callback(self, func):
-        self.callbacks.append(func)
+    def register_callback(self, func, data=None):
+        self.callbacks.append((func,data))
 
     def unregister_callback(self, func):
-        self.callbacks.remove(func)
+        self.callbacks = [x for x in self.callbacks if x[0] is not func]
 
     def on_recv(self, msg):
         self.log.debug('Receive: %s' % (str(msg)))
@@ -76,6 +76,6 @@ class Subscriber (object):
 
         self.log.debug('Event: %s' % (str(evt.dump())))
 
-        for func in self.callbacks:
-            func(evt)
+        for func, data in self.callbacks:
+            func(evt, data=data)
 
