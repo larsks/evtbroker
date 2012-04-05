@@ -16,7 +16,7 @@ def parse_args():
     p.add_argument('patterns', nargs='*', default=[''])
     return p.parse_args()
 
-def printmsg(evt):
+def printmsg(evt, data=None):
     print 'EVENT:', evt
 
 def main():
