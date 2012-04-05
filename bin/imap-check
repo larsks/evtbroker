@@ -1,0 +1,63 @@
+#!/usr/bin/python
+
+import os
+import sys
+import argparse
+import logging
+
+import configobj
+
+import zmqevt.defaults
+from zmqevt.event import Event
+from zmqevt.publisher import Publisher
+from imapclient import IMAPClient
+
+def parse_args():
+    p = argparse.ArgumentParser()
+    p.add_argument('--connect', '-c',
+            default=zmqevt.defaults.publisher_pub_uri)
+    p.add_argument('--debug', action='store_true')
+    p.add_argument('--config', '-f',
+            default=os.path.join(os.environ['HOME'], '.imapcheckrc'))
+    p.add_argument('cfgsection')
+    return p.parse_args()
+
+def mkbool(val):
+    if hasattr(val, 'lower') and val.lower() in ['yes','true']:
+        return True
+    elif hasattr(val, 'lower') and val.lower() in ['no','false']:
+        return False
+    else:
+        return bool(val)
+
+def main():
+    opts = parse_args()
+
+    logging.basicConfig(
+            level=logging.DEBUG if opts.debug else logging.INFO)
+    logging.info('imap-check starting up.')
+
+    cfg = configobj.ConfigObj(opts.config)
+    pub = Publisher(pub_uri=opts.connect)
+
+    server = IMAPClient(cfg[opts.cfgsection]['host'], 
+            use_uid = mkbool(cfg[opts.cfgsection].get('use_uid', 'True')),
+            ssl = mkbool(cfg[opts.cfgsection].get('use_uid', 'True')),
+            )
+
+    server.login(
+            cfg[opts.cfgsection]['user'],
+            cfg[opts.cfgsection]['pass'],
+            )
+
+    mailbox = cfg[opts.cfgsection].get('mailbox', 'INBOX')
+    server.select_folder(mailbox)
+
+    messages = server.search(['UNSEEN'])
+    logging.info('found %d unseen messages' % len(messages))
+    pub.publish(Event(tag='mail.messages.unseen',
+        server=opts.cfgsection, mailbox=mailbox, count=len(messages)))
+
+if __name__ == '__main__':
+    main()
+

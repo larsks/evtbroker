@@ -1,0 +1,61 @@
+#!/usr/bin/python
+
+import os
+import sys
+import argparse
+import logging
+import signal
+
+from zmq.eventloop import ioloop
+
+from zmqevt.subscriber import Subscriber
+from zmqevt.blinker import Blinker
+import zmqevt.defaults
+
+def handle_message(msg, data=None):
+    blinker, waiting = data
+
+    if msg['tag'] == 'mail.messages.unseen':
+        if int(msg['count']) > 0:
+            waiting.add('%(server)s.%(mailbox)s' % msg)
+        else:
+            try:
+                waiting.remove('%(server)s.%(mailbox)s' % msg)
+            except KeyError:
+                pass
+
+    if waiting:
+        blinker.on()
+    else:
+        blinker.off()
+
+def parse_args():
+    p = argparse.ArgumentParser()
+    p.add_argument('--connect', '-c',
+            default=zmqevt.defaults.subscriber_sub_uri)
+    p.add_argument('--debug', action='store_true')
+    p.add_argument('path')
+    return p.parse_args()
+
+def main():
+    opts = parse_args()
+    blinker = Blinker(opts.path)
+
+    logging.basicConfig(
+            level=logging.DEBUG if opts.debug else logging.INFO)
+    logging.info('Mail notifier starting up.')
+
+    s = Subscriber(patterns=[
+        'mail.messages.unseen'
+        ])
+
+    s.register_callback(handle_message, (blinker, set()))
+
+    signal.signal(signal.SIGINT,
+            lambda sig,frame: ioloop.IOLoop.instance().stop())
+    ioloop.install()
+    ioloop.IOLoop.instance().start()
+
+if __name__ == '__main__':
+    main()
+
