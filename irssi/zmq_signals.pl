@@ -69,6 +69,16 @@ sub event_query_created {
 		});
 }
 
+sub event_query_destroyed {
+	my $query = shift @_;
+
+	delete $query->{server}->{rawlog};
+
+	send_event('irssi.query.destroyed', {
+			query => $query,
+		});
+}
+
 sub event_message_private {
 	my $server  = shift @_;
 	my $msg     = shift @_;
@@ -102,6 +112,7 @@ sub event_message_own_private {
 }
 
 Irssi::signal_add('query created'       , 'event_query_created');
+Irssi::signal_add('query destroyed'     , 'event_query_destroyed');
 Irssi::signal_add('message private'     , 'event_message_private');
 Irssi::signal_add('message own_private' , 'event_message_own_private');
 
