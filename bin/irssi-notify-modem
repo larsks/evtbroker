@@ -22,13 +22,13 @@ class Blinker(object):
 
     def on(self):
         if not self.state:
-            self.log.debug('Activate notification.')
+            self.log.info('Activate notification.')
             self.fd = open(self.path)
             self.state = True
 
     def off(self):
         if self.state:
-            self.log.debug('Deactivate notification.')
+            self.log.info('Deactivate notification.')
             self.fd.close()
             self.state = False
 
